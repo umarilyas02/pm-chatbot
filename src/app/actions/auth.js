@@ -12,6 +12,7 @@ import {
   createPasswordResetToken,
   verifyPasswordResetToken,
   consumePasswordResetToken,
+  createWorkspace,
 } from '@/lib/db'
 import { createSession, deleteSession } from '@/lib/session'
 import { sendVerificationEmail, sendPasswordResetEmail } from '@/lib/email'
@@ -78,6 +79,13 @@ export async function register(state, formData) {
   const user = await createUser({ name, email, passwordHash, verificationToken, verificationExpires })
   if (!user) {
     return { message: 'Failed to create account. Please try again.' }
+  }
+
+  // Create personal workspace for the new user
+  try {
+    await createWorkspace({ ownerId: user.id, name: `${name}'s Workspace` })
+  } catch (err) {
+    console.error('Workspace creation failed:', err)
   }
 
   try {

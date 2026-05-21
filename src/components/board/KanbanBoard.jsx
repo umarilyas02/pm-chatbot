@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -21,15 +21,64 @@ const COL_META = {
 }
 
 export default function KanbanBoard({ initialTasks, projectId = null }) {
-  const [tasks, setTasks]       = useState(initialTasks)
+  const [tasks, setTasks]           = useState(initialTasks)
+  const [members, setMembers]       = useState([])
   const [activeTask, setActiveTask] = useState(null)
-  const [modal, setModal]       = useState({ open: false, status: 'todo', task: null })
-  const [saving, setSaving]     = useState(false)
-  const [mobileCol, setMobileCol] = useState('todo')
+  const [modal, setModal]           = useState({ open: false, status: 'todo', task: null })
+  const [saving, setSaving]         = useState(false)
+  const [mobileCol, setMobileCol]   = useState('todo')
+  const sseRef                      = useRef(null)
+  const reconnectTimer              = useRef(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
+
+  // ── Fetch workspace members for assignee picker ──────────────────────
+
+  useEffect(() => {
+    fetch('/api/workspace/members')
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setMembers(data))
+      .catch(() => {})
+  }, [])
+
+  // ── SSE real-time board updates ─────────────────────────────────────
+
+  useEffect(() => {
+    function connect() {
+      const es = new EventSource('/api/realtime/board')
+      sseRef.current = es
+
+      es.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        if (data.type === 'task:created') {
+          setTasks((prev) =>
+            prev.some((t) => t.id === data.task.id) ? prev : [...prev, data.task]
+          )
+        } else if (data.type === 'task:updated') {
+          setTasks((prev) =>
+            prev.map((t) => (t.id === data.task.id ? { ...t, ...data.task } : t))
+          )
+        } else if (data.type === 'task:deleted') {
+          setTasks((prev) => prev.filter((t) => t.id !== data.taskId))
+        }
+      }
+
+      es.onerror = () => {
+        es.close()
+        sseRef.current = null
+        reconnectTimer.current = setTimeout(connect, 5_000)
+      }
+    }
+
+    connect()
+
+    return () => {
+      sseRef.current?.close()
+      clearTimeout(reconnectTimer.current)
+    }
+  }, [])
 
   // ── Drag ────────────────────────────────────────────────────────────
 
@@ -114,7 +163,6 @@ export default function KanbanBoard({ initialTasks, projectId = null }) {
       >
         {/* ── Mobile: tab bar + single-column list ─────────────────── */}
         <div className="flex h-full flex-col md:hidden">
-          {/* Column tab strip */}
           <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-white/[0.06] px-3 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {COLUMNS.map((status) => {
               const meta  = COL_META[status]
@@ -141,7 +189,6 @@ export default function KanbanBoard({ initialTasks, projectId = null }) {
             })}
           </div>
 
-          {/* Task list for selected column */}
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {byStatus(mobileCol).length > 0 ? (
               <div className="space-y-2.5">
@@ -201,6 +248,7 @@ export default function KanbanBoard({ initialTasks, projectId = null }) {
         defaultStatus={modal.status}
         task={modal.task}
         saving={saving}
+        members={members}
       />
     </>
   )

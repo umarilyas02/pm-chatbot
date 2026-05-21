@@ -1,5 +1,6 @@
 import { getSession } from '@/lib/session'
 import { getTasks, createTask, createNotification } from '@/lib/db'
+import { broadcast } from '@/lib/sse'
 
 export async function GET() {
   const session = await getSession()
@@ -30,7 +31,6 @@ export async function POST(request) {
     projectId: project_id || null,
   })
 
-  // Emit notification for high/critical priority tasks
   if (task.priority === 'critical' || task.priority === 'high') {
     await createNotification({
       userId: session.userId,
@@ -40,6 +40,8 @@ export async function POST(request) {
       href: '/board',
     })
   }
+
+  broadcast(session.userId, { type: 'task:created', task })
 
   return Response.json(task, { status: 201 })
 }

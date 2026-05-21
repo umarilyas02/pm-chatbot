@@ -380,7 +380,7 @@ export async function getTasks(userId, projectId = null) {
   }
   const { rows } = await query(
     `SELECT t.id, t.title, t.description, t.status, t.priority,
-            t.due_date, t.position, t.project_id, t.created_at, t.updated_at,
+            t.due_date::text, t.position, t.project_id, t.created_at, t.updated_at,
             u.name AS assignee_name, u.id AS assignee_id
      FROM tasks t
      LEFT JOIN users u ON u.id = t.assignee_id
@@ -412,7 +412,7 @@ export async function createTask({ creatorId, title, description, status, priori
   const { rows } = await query(
     `INSERT INTO tasks (creator_id, title, description, status, priority, due_date, project_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, title, description, status, priority, due_date, position, project_id, created_at`,
+     RETURNING id, title, description, status, priority, due_date::text, position, project_id, created_at`,
     [creatorId, title, description ?? null, status ?? 'todo', priority ?? 'medium', dueDate ?? null, projectId ?? null]
   )
   return rows[0]
@@ -428,7 +428,7 @@ export async function updateTask(id, fields) {
 
   const { rows } = await query(
     `UPDATE tasks SET ${setClauses} WHERE id = $1
-     RETURNING id, title, description, status, priority, due_date, position, assignee_id, updated_at`,
+     RETURNING id, title, description, status, priority, due_date::text, position, assignee_id, updated_at`,
     [id, ...values]
   )
   return rows[0] ?? null
@@ -470,7 +470,7 @@ export async function getDashboardStats(userId) {
 
 export async function getOverdueTasks(userId, limit = 5) {
   const { rows } = await query(
-    `SELECT id, title, priority, due_date, status
+    `SELECT id, title, priority, due_date::text, status
      FROM tasks
      WHERE creator_id = $1
        AND due_date < CURRENT_DATE
@@ -538,4 +538,139 @@ export async function deleteNotifications(userId, ids = null) {
   } else {
     await query('DELETE FROM notifications WHERE user_id = $1', [userId])
   }
+}
+
+// ── Workspace queries ────────────────────────────────────────────────
+
+export async function createWorkspace({ ownerId, name }) {
+  const { rows } = await query(
+    `INSERT INTO workspaces (owner_id, name) VALUES ($1, $2)
+     RETURNING id, name, owner_id, created_at`,
+    [ownerId, name]
+  )
+  const workspace = rows[0]
+  await query(
+    `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')`,
+    [workspace.id, ownerId]
+  )
+  return workspace
+}
+
+export async function getPrimaryWorkspace(userId) {
+  const { rows } = await query(
+    `SELECT w.id, w.name, w.owner_id, w.created_at
+     FROM workspaces w
+     JOIN workspace_members wm ON wm.workspace_id = w.id
+     WHERE wm.user_id = $1
+     ORDER BY w.created_at ASC
+     LIMIT 1`,
+    [userId]
+  )
+  return rows[0] ?? null
+}
+
+export async function getWorkspaceMembers(workspaceId) {
+  const { rows } = await query(
+    `SELECT u.id, u.name, u.email, u.avatar_url, wm.role, wm.joined_at
+     FROM workspace_members wm
+     JOIN users u ON u.id = wm.user_id
+     WHERE wm.workspace_id = $1
+     ORDER BY wm.joined_at ASC`,
+    [workspaceId]
+  )
+  return rows
+}
+
+export async function addWorkspaceMember(workspaceId, userId, role = 'member') {
+  await query(
+    `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)
+     ON CONFLICT (workspace_id, user_id) DO NOTHING`,
+    [workspaceId, userId, role]
+  )
+}
+
+export async function removeWorkspaceMember(workspaceId, userId) {
+  await query(
+    `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`,
+    [workspaceId, userId]
+  )
+}
+
+export async function isWorkspaceMember(workspaceId, userId) {
+  const { rows } = await query(
+    `SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`,
+    [workspaceId, userId]
+  )
+  return rows.length > 0
+}
+
+// ── Workspace invite queries ─────────────────────────────────────────
+
+export async function createWorkspaceInvite({ workspaceId, email, token, invitedBy, expiresAt }) {
+  const { rows } = await query(
+    `INSERT INTO workspace_invites (workspace_id, email, token, invited_by, expires_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (token) DO UPDATE SET expires_at = EXCLUDED.expires_at
+     RETURNING id`,
+    [workspaceId, email.toLowerCase(), token, invitedBy, expiresAt]
+  )
+  return rows[0]
+}
+
+export async function getWorkspaceInviteByToken(token) {
+  const { rows } = await query(
+    `SELECT wi.id, wi.workspace_id, wi.email, wi.expires_at, wi.accepted_at,
+            w.name AS workspace_name,
+            u.name AS inviter_name
+     FROM workspace_invites wi
+     JOIN workspaces w ON w.id = wi.workspace_id
+     JOIN users u ON u.id = wi.invited_by
+     WHERE wi.token = $1
+       AND wi.expires_at > NOW()
+       AND wi.accepted_at IS NULL
+     LIMIT 1`,
+    [token]
+  )
+  return rows[0] ?? null
+}
+
+export async function acceptWorkspaceInvite(inviteId, workspaceId, userId) {
+  await addWorkspaceMember(workspaceId, userId, 'member')
+  await query(
+    `UPDATE workspace_invites SET accepted_at = NOW() WHERE id = $1`,
+    [inviteId]
+  )
+}
+
+export async function getPendingInvites(workspaceId) {
+  const { rows } = await query(
+    `SELECT id, email, created_at, expires_at
+     FROM workspace_invites
+     WHERE workspace_id = $1
+       AND accepted_at IS NULL
+       AND expires_at > NOW()
+     ORDER BY created_at DESC`,
+    [workspaceId]
+  )
+  return rows
+}
+
+export async function cancelWorkspaceInvite(inviteId, workspaceId) {
+  await query(
+    `DELETE FROM workspace_invites WHERE id = $1 AND workspace_id = $2`,
+    [inviteId, workspaceId]
+  )
+}
+
+// ── Overdue cron query ───────────────────────────────────────────────
+
+export async function getNewlyOverdueTasks() {
+  const { rows } = await query(
+    `SELECT t.id, t.title, t.creator_id, t.due_date::text
+     FROM tasks t
+     WHERE t.due_date = CURRENT_DATE - INTERVAL '1 day'
+       AND t.status NOT IN ('completed')`,
+    []
+  )
+  return rows
 }

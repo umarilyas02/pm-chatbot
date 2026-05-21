@@ -12,16 +12,18 @@ import {
   ChevronRight,
   Zap,
   X,
+  Users,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/chat',      icon: MessageSquare,   label: 'AI Chat' },
-  { href: '/projects',  icon: FolderKanban,    label: 'Projects' },
-  { href: '/notifications', icon: Bell,        label: 'Notifications' },
-  { href: '/settings',  icon: Settings,        label: 'Settings' },
+  { href: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/chat',          icon: MessageSquare,   label: 'AI Chat' },
+  { href: '/projects',      icon: FolderKanban,    label: 'Projects' },
+  { href: '/team',          icon: Users,           label: 'Team' },
+  { href: '/notifications', icon: Bell,            label: 'Notifications' },
+  { href: '/settings',      icon: Settings,        label: 'Settings' },
 ]
 
 export default function Sidebar({ mobileOpen, onClose }) {

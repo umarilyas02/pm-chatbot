@@ -12,7 +12,7 @@ const STATUS_LABELS = {
   review: 'Review', blocked: 'Blocked', completed: 'Completed',
 }
 
-export default function TaskModal({ open, onClose, onSave, defaultStatus = 'todo', task = null, saving = false }) {
+export default function TaskModal({ open, onClose, onSave, defaultStatus = 'todo', task = null, saving = false, members = [] }) {
   const titleRef = useRef(null)
 
   // Focus title on open
@@ -39,6 +39,7 @@ export default function TaskModal({ open, onClose, onSave, defaultStatus = 'todo
       status:      fd.get('status'),
       priority:    fd.get('priority'),
       due_date:    fd.get('due_date') || null,
+      assignee_id: fd.get('assignee_id') || null,
     })
   }
 
@@ -120,15 +121,30 @@ export default function TaskModal({ open, onClose, onSave, defaultStatus = 'todo
             </div>
           </div>
 
-          {/* Due date */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-400">Due date</label>
-            <input
-              type="date"
-              name="due_date"
-              defaultValue={task?.due_date?.slice(0, 10) ?? ''}
-              className={cn(inputCls, 'dark:[color-scheme:dark]')}
-            />
+          {/* Due date + Assignee row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-400">Due date</label>
+              <input
+                type="date"
+                name="due_date"
+                defaultValue={task?.due_date?.slice(0, 10) ?? ''}
+                className={cn(inputCls, 'dark:[color-scheme:dark]')}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-400">Assignee</label>
+              <select
+                name="assignee_id"
+                defaultValue={task?.assignee_id ?? ''}
+                className={inputCls}
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Actions */}

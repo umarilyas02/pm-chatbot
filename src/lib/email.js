@@ -72,6 +72,29 @@ export async function sendVerificationEmail(to, token) {
   })
 }
 
+export async function sendWorkspaceInviteEmail(to, { inviterName, workspaceName, token }) {
+  const url = `${APP_URL}/accept-invite?token=${token}`
+  await send({
+    to,
+    subject: `${inviterName} invited you to ${workspaceName} on CreateX`,
+    html: baseLayout(`
+      <h2 style="color:#f8fafc;font-size:20px;margin:0 0 12px">You're invited!</h2>
+      <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:0 0 24px">
+        <strong style="color:#f8fafc">${inviterName}</strong> has invited you to join
+        <strong style="color:#f8fafc">${workspaceName}</strong> on CreateX.
+        Click below to accept — this invite expires in 7 days.
+      </p>
+      <a href="${url}"
+         style="display:inline-block;background:#22c55e;color:white;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">
+        Accept invite
+      </a>
+      <p style="color:#475569;font-size:12px;margin:24px 0 0">
+        Or copy this link: <span style="color:#94a3b8">${url}</span>
+      </p>
+    `),
+  })
+}
+
 export async function sendPasswordResetEmail(to, token) {
   const url = `${APP_URL}/reset-password?token=${token}`
   await send({

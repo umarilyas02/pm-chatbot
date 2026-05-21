@@ -7,6 +7,7 @@ const PUBLIC_PAGES = new Set([
   '/forgot-password',
   '/reset-password',
   '/verify-email',
+  '/accept-invite',
 ])
 
 function isPublic(pathname) {

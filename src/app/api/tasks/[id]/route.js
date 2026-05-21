@@ -1,5 +1,6 @@
 import { getSession } from '@/lib/session'
-import { updateTask, deleteTask } from '@/lib/db'
+import { updateTask, deleteTask, createNotification } from '@/lib/db'
+import { broadcast } from '@/lib/sse'
 
 export async function PATCH(request, { params }) {
   const session = await getSession()
@@ -8,7 +9,6 @@ export async function PATCH(request, { params }) {
   const { id } = await params
   const body = await request.json()
 
-  // Map snake_case body keys to DB column names
   const fields = {}
   if (body.title !== undefined)       fields.title       = body.title
   if (body.description !== undefined) fields.description = body.description
@@ -21,14 +21,31 @@ export async function PATCH(request, { params }) {
   const task = await updateTask(id, fields)
   if (!task) return Response.json({ error: 'Task not found' }, { status: 404 })
 
+  // Notify the assignee if they were just assigned (and it's not the current user)
+  if (body.assignee_id && body.assignee_id !== session.userId) {
+    await createNotification({
+      userId: body.assignee_id,
+      type: 'task_assigned',
+      title: 'Task assigned to you',
+      body: task.title,
+      href: '/board',
+    })
+    broadcast(body.assignee_id, { type: 'task:updated', task })
+  }
+
+  broadcast(session.userId, { type: 'task:updated', task })
+
   return Response.json(task)
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(_request, { params }) {
   const session = await getSession()
   if (!session?.userId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
   await deleteTask(id, session.userId)
+
+  broadcast(session.userId, { type: 'task:deleted', taskId: id })
+
   return new Response(null, { status: 204 })
 }
