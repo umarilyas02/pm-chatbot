@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"AI SaaS project management chat dashboard dark glassmorphism minimal\" --design-system --persist -p \"CreateX\" -f markdown)",
+      "Bash(python \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"real-time dashboard analytics kanban\" --domain chart -n 5)",
+      "Bash(python \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"animation loading skeleton dark\" --domain ux -n 5)"
+    ]
+  }
+}
