@@ -6,6 +6,7 @@ import {
   createWorkspaceInvite,
   cancelWorkspaceInvite,
   removeWorkspaceMember,
+  deleteUser,
   getWorkspaceInviteByToken,
   acceptWorkspaceInvite,
   isWorkspaceMember,
@@ -105,6 +106,7 @@ export async function removeMember({ workspaceId, userId }) {
   if (userId === session.userId) return { error: 'Cannot remove yourself' }
 
   await removeWorkspaceMember(workspaceId, userId)
+  await deleteUser(userId)
   return { ok: true }
 }
 

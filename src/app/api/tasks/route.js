@@ -15,7 +15,7 @@ export async function POST(request) {
   if (!session?.userId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { title, description, status, priority, due_date, project_id } = body
+  const { title, description, status, priority, due_date, project_id, assignee_id } = body
 
   if (!title?.trim()) {
     return Response.json({ error: 'Title is required' }, { status: 400 })
@@ -29,6 +29,7 @@ export async function POST(request) {
     priority: priority || 'medium',
     dueDate: due_date || null,
     projectId: project_id || null,
+    assigneeId: assignee_id || null,
   })
 
   if (task.priority === 'critical' || task.priority === 'high') {
@@ -39,6 +40,18 @@ export async function POST(request) {
       body: task.title,
       href: '/board',
     })
+  }
+
+  // Notify + broadcast to assignee if different from creator
+  if (assignee_id && assignee_id !== session.userId) {
+    await createNotification({
+      userId: assignee_id,
+      type: 'task_assigned',
+      title: 'Task assigned to you',
+      body: task.title,
+      href: '/board',
+    })
+    broadcast(assignee_id, { type: 'task:created', task })
   }
 
   broadcast(session.userId, { type: 'task:created', task })

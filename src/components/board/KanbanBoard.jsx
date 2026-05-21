@@ -57,9 +57,12 @@ export default function KanbanBoard({ initialTasks, projectId = null }) {
             prev.some((t) => t.id === data.task.id) ? prev : [...prev, data.task]
           )
         } else if (data.type === 'task:updated') {
-          setTasks((prev) =>
-            prev.map((t) => (t.id === data.task.id ? { ...t, ...data.task } : t))
-          )
+          setTasks((prev) => {
+            const exists = prev.some((t) => t.id === data.task.id)
+            return exists
+              ? prev.map((t) => (t.id === data.task.id ? { ...t, ...data.task } : t))
+              : [...prev, data.task]
+          })
         } else if (data.type === 'task:deleted') {
           setTasks((prev) => prev.filter((t) => t.id !== data.taskId))
         }

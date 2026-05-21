@@ -1,5 +1,5 @@
 import { getSession } from '@/lib/session'
-import { getPrimaryWorkspace, getWorkspaceMembers, removeWorkspaceMember, isWorkspaceMember } from '@/lib/db'
+import { getPrimaryWorkspace, getWorkspaceMembers, removeWorkspaceMember, deleteUser, isWorkspaceMember } from '@/lib/db'
 
 export async function GET() {
   const session = await getSession()
@@ -34,5 +34,6 @@ export async function DELETE(request) {
   if (!isMember) return Response.json({ error: 'User is not a member' }, { status: 404 })
 
   await removeWorkspaceMember(workspace.id, userId)
+  await deleteUser(userId)
   return new Response(null, { status: 204 })
 }

@@ -62,6 +62,10 @@ export async function updateUser(id, fields) {
   return rows[0] ?? null
 }
 
+export async function deleteUser(id) {
+  await query('DELETE FROM users WHERE id = $1', [id])
+}
+
 export async function getUserWithHash(id) {
   const { rows } = await query(
     'SELECT id, name, email, role, password_hash FROM users WHERE id = $1 LIMIT 1',
@@ -409,12 +413,13 @@ export async function getTasksForAiContext(userId, projectIds = null) {
   return rows
 }
 
-export async function createTask({ creatorId, title, description, status, priority, dueDate, projectId }) {
+export async function createTask({ creatorId, title, description, status, priority, dueDate, projectId, assigneeId }) {
   const { rows } = await query(
-    `INSERT INTO tasks (creator_id, title, description, status, priority, due_date, project_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, title, description, status, priority, due_date::text, position, project_id, created_at`,
-    [creatorId, title, description ?? null, status ?? 'todo', priority ?? 'medium', dueDate ?? null, projectId ?? null]
+    `INSERT INTO tasks (creator_id, title, description, status, priority, due_date, project_id, assignee_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id, title, description, status, priority, due_date::text, position, project_id,
+               creator_id, assignee_id, created_at`,
+    [creatorId, title, description ?? null, status ?? 'todo', priority ?? 'medium', dueDate ?? null, projectId ?? null, assigneeId ?? null]
   )
   return rows[0]
 }
