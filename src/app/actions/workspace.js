@@ -15,6 +15,7 @@ import { sendWorkspaceInviteEmail } from '@/lib/email'
 import { rateLimit } from '@/lib/ratelimit'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 
 function makeToken() {
   return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex')
@@ -117,5 +118,6 @@ export async function acceptInvite(token) {
   if (!invite) return { error: 'This invite link is invalid or has expired.' }
 
   await acceptWorkspaceInvite(invite.id, invite.workspace_id, session.userId)
+  revalidatePath('/team')
   return { ok: true, workspaceName: invite.workspace_name }
 }

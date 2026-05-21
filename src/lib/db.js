@@ -460,7 +460,7 @@ export async function getDashboardStats(userId) {
        COUNT(*) FILTER (WHERE priority = 'medium')                          AS medium,
        COUNT(*) FILTER (WHERE priority = 'low')                             AS low
      FROM tasks
-     WHERE creator_id = $1`,
+     WHERE (creator_id = $1 OR assignee_id = $1)`,
     [userId]
   )
   // pg returns strings for COUNT — cast to integers
@@ -472,7 +472,7 @@ export async function getOverdueTasks(userId, limit = 5) {
   const { rows } = await query(
     `SELECT id, title, priority, due_date::text, status
      FROM tasks
-     WHERE creator_id = $1
+     WHERE (creator_id = $1 OR assignee_id = $1)
        AND due_date < CURRENT_DATE
        AND status NOT IN ('completed')
      ORDER BY due_date ASC
