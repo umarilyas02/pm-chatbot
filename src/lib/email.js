@@ -4,7 +4,12 @@
 
 import nodemailer from 'nodemailer'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+// APP_URL must be set in your deployment env (Vercel → Settings → Environment Variables).
+// Falls back to NEXT_PUBLIC_APP_URL, then localhost for local dev only.
+const APP_URL =
+  process.env.APP_URL ??
+  process.env.NEXT_PUBLIC_APP_URL ??
+  'http://localhost:3000'
 const FROM = process.env.EMAIL_FROM ?? 'CreateX <noreply@localhost>'
 
 function getTransport() {

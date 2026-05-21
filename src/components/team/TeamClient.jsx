@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Mail, Crown, User, Trash2, Loader2, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { inviteMember, cancelInvite, removeMember } from '@/app/actions/workspace'
@@ -28,6 +28,21 @@ export default function TeamClient({ workspace, initialMembers, initialInvites, 
   const [email, setEmail] = useState('')
   const [isPending, startTransition] = useTransition()
   const isOwner = workspace.owner_id === currentUserId
+
+  // Poll every 10 s so accepted invites disappear and new members appear promptly
+  useEffect(() => {
+    if (!isOwner) return
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch('/api/workspace')
+        if (!res.ok) return
+        const data = await res.json()
+        setMembers(data.members)
+        setInvites(data.invites)
+      } catch {}
+    }, 10_000)
+    return () => clearInterval(id)
+  }, [isOwner])
 
   function handleInvite(e) {
     e.preventDefault()

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
-import { findUserById, getDashboardStats, getOverdueTasks } from '@/lib/db'
+import { findUserById, getDashboardStats, getOverdueTasks, getPrimaryWorkspace } from '@/lib/db'
 import StatsGrid from '@/components/dashboard/StatsGrid'
 import TaskDistributionChart from '@/components/dashboard/TaskDistributionChart'
 import PriorityChart from '@/components/dashboard/PriorityChart'
@@ -20,10 +20,13 @@ export default async function DashboardPage() {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
+  const workspace = await getPrimaryWorkspace(session.userId)
+  const assigneeOnly = workspace ? workspace.owner_id !== session.userId : false
+
   const [user, stats, overdue] = await Promise.all([
     findUserById(session.userId),
-    getDashboardStats(session.userId),
-    getOverdueTasks(session.userId),
+    getDashboardStats(session.userId, assigneeOnly),
+    getOverdueTasks(session.userId, 5, assigneeOnly),
   ])
 
   const firstName = user?.name?.split(' ')[0] ?? 'there'

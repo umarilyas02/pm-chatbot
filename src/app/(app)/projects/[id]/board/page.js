@@ -1,5 +1,5 @@
 import { getSession } from '@/lib/session'
-import { getTasks, getProject } from '@/lib/db'
+import { getProjectByWorkspaceMember, getProjectTasks } from '@/lib/db'
 import KanbanBoard from '@/components/board/KanbanBoard'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -15,10 +15,10 @@ export default async function ProjectBoardPage({ params }) {
   if (!session?.userId) redirect('/login')
 
   const { id } = await params
-  const project = await getProject(id, session.userId)
+  const project = await getProjectByWorkspaceMember(id, session.userId)
   if (!project) notFound()
 
-  const tasks = await getTasks(session.userId, id)
+  const tasks = await getProjectTasks(id)
 
   const serialized = tasks.map((t) => ({
     id:            t.id,

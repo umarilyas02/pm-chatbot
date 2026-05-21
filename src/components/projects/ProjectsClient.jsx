@@ -4,10 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, FolderKanban, Trash2, ArrowRight, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 import ProjectModal from './ProjectModal'
 
-export default function ProjectsClient({ initialProjects }) {
+export default function ProjectsClient({ initialProjects, isOwner = false }) {
   const [projects, setProjects] = useState(initialProjects)
   const [modal, setModal] = useState({ open: false, project: null })
   const [saving, setSaving] = useState(false)
@@ -72,13 +71,15 @@ export default function ProjectsClient({ initialProjects }) {
             {projects.length} {projects.length === 1 ? 'project' : 'projects'}
           </p>
         </div>
-        <button
-          onClick={() => setModal({ open: true, project: null })}
-          className="flex items-center gap-2 rounded-lg bg-[#22c55e] px-3.5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          New project
-        </button>
+        {isOwner && (
+          <button
+            onClick={() => setModal({ open: true, project: null })}
+            className="flex items-center gap-2 rounded-lg bg-[#22c55e] px-3.5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            New project
+          </button>
+        )}
       </div>
 
       {/* Empty state */}
@@ -91,13 +92,15 @@ export default function ProjectsClient({ initialProjects }) {
             <p className="text-sm font-medium text-slate-400">No projects yet</p>
             <p className="mt-0.5 text-xs text-slate-600">Create your first project to get started</p>
           </div>
-          <button
-            onClick={() => setModal({ open: true, project: null })}
-            className="flex items-center gap-2 rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-slate-400 transition-colors hover:border-white/20 hover:text-[#f8fafc] cursor-pointer"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Create project
-          </button>
+          {isOwner && (
+            <button
+              onClick={() => setModal({ open: true, project: null })}
+              className="flex items-center gap-2 rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-slate-400 transition-colors hover:border-white/20 hover:text-[#f8fafc] cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Create project
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -111,26 +114,28 @@ export default function ProjectsClient({ initialProjects }) {
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#22c55e]/10">
                   <FolderKanban className="h-4 w-4 text-[#22c55e]" />
                 </div>
-                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <div
-                    onClick={(e) => openEdit(project, e)}
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-[#f8fafc] cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Edit project"
-                  >
-                    <Pencil className="h-3 w-3" />
+                {isOwner && (
+                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div
+                      onClick={(e) => openEdit(project, e)}
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-[#f8fafc] cursor-pointer"
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Edit project"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </div>
+                    <div
+                      onClick={(e) => handleDelete(project.id, e)}
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 cursor-pointer"
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Delete project"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </div>
                   </div>
-                  <div
-                    onClick={(e) => handleDelete(project.id, e)}
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Delete project"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="min-w-0 flex-1">

@@ -1,9 +1,14 @@
 import { getSession } from '@/lib/session'
-import { updateProject, deleteProject } from '@/lib/db'
+import { updateProject, deleteProject, getPrimaryWorkspace } from '@/lib/db'
 
 export async function PATCH(request, { params }) {
   const session = await getSession()
   if (!session?.userId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const workspace = await getPrimaryWorkspace(session.userId)
+  if (!workspace || workspace.owner_id !== session.userId) {
+    return Response.json({ error: 'Only the workspace owner can edit projects' }, { status: 403 })
+  }
 
   const { id } = await params
   const body = await request.json()
@@ -16,6 +21,11 @@ export async function PATCH(request, { params }) {
 export async function DELETE(_, { params }) {
   const session = await getSession()
   if (!session?.userId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const workspace = await getPrimaryWorkspace(session.userId)
+  if (!workspace || workspace.owner_id !== session.userId) {
+    return Response.json({ error: 'Only the workspace owner can delete projects' }, { status: 403 })
+  }
 
   const { id } = await params
   await deleteProject(id, session.userId)

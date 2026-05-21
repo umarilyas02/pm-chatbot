@@ -440,7 +440,10 @@ export async function deleteTask(id, creatorId) {
 
 // ── Dashboard queries ────────────────────────────────────────────────
 
-export async function getDashboardStats(userId) {
+export async function getDashboardStats(userId, assigneeOnly = false) {
+  const filter = assigneeOnly
+    ? 'assignee_id = $1'
+    : '(creator_id = $1 OR assignee_id = $1)'
   const { rows } = await query(
     `SELECT
        COUNT(*)                                                               AS total,
@@ -460,19 +463,21 @@ export async function getDashboardStats(userId) {
        COUNT(*) FILTER (WHERE priority = 'medium')                          AS medium,
        COUNT(*) FILTER (WHERE priority = 'low')                             AS low
      FROM tasks
-     WHERE (creator_id = $1 OR assignee_id = $1)`,
+     WHERE ${filter}`,
     [userId]
   )
-  // pg returns strings for COUNT — cast to integers
   const r = rows[0]
   return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, parseInt(v, 10)]))
 }
 
-export async function getOverdueTasks(userId, limit = 5) {
+export async function getOverdueTasks(userId, limit = 5, assigneeOnly = false) {
+  const filter = assigneeOnly
+    ? 'assignee_id = $1'
+    : '(creator_id = $1 OR assignee_id = $1)'
   const { rows } = await query(
     `SELECT id, title, priority, due_date::text, status
      FROM tasks
-     WHERE (creator_id = $1 OR assignee_id = $1)
+     WHERE ${filter}
        AND due_date < CURRENT_DATE
        AND status NOT IN ('completed')
      ORDER BY due_date ASC
@@ -602,6 +607,60 @@ export async function isWorkspaceMember(workspaceId, userId) {
     [workspaceId, userId]
   )
   return rows.length > 0
+}
+
+export async function getWorkspaceMemberRole(workspaceId, userId) {
+  const { rows } = await query(
+    `SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+    [workspaceId, userId]
+  )
+  return rows[0]?.role ?? null
+}
+
+// All projects belonging to any member of the workspace
+export async function getWorkspaceProjects(workspaceId) {
+  const { rows } = await query(
+    `SELECT p.id, p.name, p.description, p.status, p.created_at,
+            COUNT(t.id)::int AS task_count
+     FROM projects p
+     LEFT JOIN tasks t ON t.project_id = p.id
+     WHERE p.owner_id IN (
+       SELECT user_id FROM workspace_members WHERE workspace_id = $1
+     )
+     GROUP BY p.id
+     ORDER BY p.created_at DESC`,
+    [workspaceId]
+  )
+  return rows
+}
+
+// Get a project if the user is in the same workspace as the project owner
+export async function getProjectByWorkspaceMember(projectId, userId) {
+  const { rows } = await query(
+    `SELECT p.id, p.name, p.description, p.status, p.created_at
+     FROM projects p
+     JOIN workspace_members wm1 ON wm1.user_id = p.owner_id
+     JOIN workspace_members wm2 ON wm2.workspace_id = wm1.workspace_id
+     WHERE p.id = $1 AND wm2.user_id = $2
+     LIMIT 1`,
+    [projectId, userId]
+  )
+  return rows[0] ?? null
+}
+
+// All tasks in a project (for board view — no user filter)
+export async function getProjectTasks(projectId) {
+  const { rows } = await query(
+    `SELECT t.id, t.title, t.description, t.status, t.priority,
+            t.due_date::text, t.position, t.project_id, t.created_at, t.updated_at,
+            u.name AS assignee_name, u.id AS assignee_id
+     FROM tasks t
+     LEFT JOIN users u ON u.id = t.assignee_id
+     WHERE t.project_id = $1
+     ORDER BY t.status, t.position ASC, t.created_at DESC`,
+    [projectId]
+  )
+  return rows
 }
 
 // ── Workspace invite queries ─────────────────────────────────────────
