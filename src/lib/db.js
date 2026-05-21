@@ -373,7 +373,7 @@ export async function deleteProject(id, ownerId) {
 
 export async function getTasks(userId, projectId = null) {
   const params = [userId]
-  let filter = 'WHERE t.creator_id = $1'
+  let filter = 'WHERE (t.creator_id = $1 OR t.assignee_id = $1)'
   if (projectId) {
     params.push(projectId)
     filter += ' AND t.project_id = $2'
@@ -381,6 +381,7 @@ export async function getTasks(userId, projectId = null) {
   const { rows } = await query(
     `SELECT t.id, t.title, t.description, t.status, t.priority,
             t.due_date::text, t.position, t.project_id, t.created_at, t.updated_at,
+            t.creator_id,
             u.name AS assignee_name, u.id AS assignee_id
      FROM tasks t
      LEFT JOIN users u ON u.id = t.assignee_id
