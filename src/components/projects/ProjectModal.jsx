@@ -4,23 +4,13 @@ import { useEffect, useRef } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const STATUSES = ['backlog', 'todo', 'in_progress', 'review', 'blocked', 'completed']
-const PRIORITIES = ['low', 'medium', 'high', 'critical']
+export default function ProjectModal({ open, onClose, onSave, project = null, saving = false }) {
+  const nameRef = useRef(null)
 
-const STATUS_LABELS = {
-  backlog: 'Backlog', todo: 'Todo', in_progress: 'In Progress',
-  review: 'Review', blocked: 'Blocked', completed: 'Completed',
-}
-
-export default function TaskModal({ open, onClose, onSave, defaultStatus = 'todo', task = null, saving = false }) {
-  const titleRef = useRef(null)
-
-  // Focus title on open
   useEffect(() => {
-    if (open) setTimeout(() => titleRef.current?.focus(), 50)
+    if (open) setTimeout(() => nameRef.current?.focus(), 50)
   }, [open])
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return
     const handler = (e) => { if (e.key === 'Escape') onClose() }
@@ -34,11 +24,8 @@ export default function TaskModal({ open, onClose, onSave, defaultStatus = 'todo
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     onSave({
-      title:       fd.get('title'),
+      name: fd.get('name'),
       description: fd.get('description') || null,
-      status:      fd.get('status'),
-      priority:    fd.get('priority'),
-      due_date:    fd.get('due_date') || null,
     })
   }
 
@@ -50,17 +37,14 @@ export default function TaskModal({ open, onClose, onSave, defaultStatus = 'todo
       className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
       onClick={onClose}
     >
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-      {/* Panel */}
       <div
-        className="relative z-10 w-full max-w-md rounded-t-2xl border border-white/[0.08] bg-[#0f172a] p-5 shadow-2xl max-h-[90dvh] overflow-y-auto sm:rounded-2xl"
+        className="relative z-10 w-full max-w-md rounded-t-2xl border border-white/[0.08] bg-[#0f172a] p-5 shadow-2xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="font-mono text-sm font-semibold text-[#f8fafc]">
-            {task ? 'Edit task' : 'New task'}
+            {project ? 'Edit project' : 'New project'}
           </h2>
           <button
             onClick={onClose}
@@ -71,67 +55,31 @@ export default function TaskModal({ open, onClose, onSave, defaultStatus = 'todo
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Title */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-400">
-              Title <span className="text-red-400">*</span>
+              Name <span className="text-red-400">*</span>
             </label>
             <input
-              ref={titleRef}
-              name="title"
+              ref={nameRef}
+              name="name"
               required
-              defaultValue={task?.title ?? ''}
-              placeholder="What needs to be done?"
+              defaultValue={project?.name ?? ''}
+              placeholder="Project name"
               className={inputCls}
             />
           </div>
 
-          {/* Description */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-400">
-              Description
-            </label>
+            <label className="mb-1.5 block text-xs font-medium text-slate-400">Description</label>
             <textarea
               name="description"
               rows={3}
-              defaultValue={task?.description ?? ''}
-              placeholder="Optional details…"
+              defaultValue={project?.description ?? ''}
+              placeholder="What is this project about?"
               className={cn(inputCls, 'resize-none')}
             />
           </div>
 
-          {/* Status + Priority row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-400">Status</label>
-              <select name="status" defaultValue={task?.status ?? defaultStatus} className={inputCls}>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-400">Priority</label>
-              <select name="priority" defaultValue={task?.priority ?? 'medium'} className={inputCls}>
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Due date */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-400">Due date</label>
-            <input
-              type="date"
-              name="due_date"
-              defaultValue={task?.due_date?.slice(0, 10) ?? ''}
-              className={cn(inputCls, 'dark:[color-scheme:dark]')}
-            />
-          </div>
-
-          {/* Actions */}
           <div className="flex justify-end gap-3 pt-1">
             <button
               type="button"
@@ -146,7 +94,7 @@ export default function TaskModal({ open, onClose, onSave, defaultStatus = 'todo
               className="flex items-center gap-2 rounded-lg bg-[#22c55e] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
             >
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {task ? 'Save changes' : 'Create task'}
+              {project ? 'Save changes' : 'Create project'}
             </button>
           </div>
         </form>

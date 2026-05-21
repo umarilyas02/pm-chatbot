@@ -71,7 +71,7 @@ export default function TaskCard({ task, onDelete, onClick }) {
           {/* Delete */}
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(task.id) }}
-            className="hidden rounded p-0.5 text-slate-600 transition-colors hover:text-red-400 group-hover:block cursor-pointer"
+            className="rounded p-0.5 text-slate-700 transition-colors hover:text-red-400 md:hidden md:group-hover:block cursor-pointer"
             aria-label="Delete task"
           >
             <Trash2 className="h-3.5 w-3.5" />

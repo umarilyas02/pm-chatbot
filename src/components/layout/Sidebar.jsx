@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   MessageSquare,
-  Kanban,
+  FolderKanban,
   Bell,
   Settings,
   ChevronLeft,
@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/chat',      icon: MessageSquare,   label: 'AI Chat' },
-  { href: '/board',     icon: Kanban,          label: 'Board' },
+  { href: '/projects',  icon: FolderKanban,    label: 'Projects' },
   { href: '/notifications', icon: Bell,        label: 'Notifications' },
   { href: '/settings',  icon: Settings,        label: 'Settings' },
 ]

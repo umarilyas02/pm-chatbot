@@ -26,12 +26,12 @@ Task stats:
 - By priority — Critical: ${stats.critical}, High: ${stats.high}, Medium: ${stats.medium}, Low: ${stats.low}
 - By status — Backlog: ${stats.backlog}, Todo: ${stats.todo}, Review: ${stats.review}
 
-Write exactly 2-3 bullet points starting with "•". Each point should be one sentence.`
+Write exactly 2-3 bullet points starting with "•". Each point should be one sentence. Do not include any XML, JSON, action tags, or tool calls in your response — plain text only.`
 
   try {
     const model = getModel()
     const result = await model.generateContent(prompt)
-    const insight = result.response.text().trim()
+    const insight = result.response.text().trim().replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, '').trim()
     return Response.json({ insight })
   } catch {
     return Response.json({ insight: 'Unable to generate insights right now.' })

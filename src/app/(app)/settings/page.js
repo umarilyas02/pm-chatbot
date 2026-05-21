@@ -30,7 +30,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-2xl space-y-6 p-6">
+      <div className="space-y-6 p-6">
 
         {/* Page heading */}
         <div>

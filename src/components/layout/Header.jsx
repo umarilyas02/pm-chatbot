@@ -9,6 +9,7 @@ const PAGE_TITLES = {
   '/dashboard':     'Dashboard',
   '/chat':          'AI Chat',
   '/board':         'Board',
+  '/projects':      'Projects',
   '/notifications': 'Notifications',
   '/settings':      'Settings',
 }

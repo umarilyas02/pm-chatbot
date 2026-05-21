@@ -3,20 +3,32 @@
 import { useActionState } from 'react'
 import { login } from '@/app/actions/auth'
 import { Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import ResendVerificationForm from '@/components/auth/ResendVerificationForm'
 
 export default function LoginForm() {
   const [state, action, pending] = useActionState(login, undefined)
 
+  // Email not verified — show resend flow instead of generic error
+  if (state?.unverified) {
+    return (
+      <div className="space-y-4">
+        <p className="rounded-lg bg-amber-500/10 px-4 py-2.5 text-sm text-amber-400">
+          {state.message}
+        </p>
+        <ResendVerificationForm />
+      </div>
+    )
+  }
+
   return (
     <form action={action} className="space-y-4">
-      {/* Global error */}
       {state?.message && (
         <p className="rounded-lg bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
           {state.message}
         </p>
       )}
 
-      {/* Email */}
       <div className="space-y-1.5">
         <label htmlFor="email" className="block text-sm font-medium text-slate-300">
           Email
@@ -34,11 +46,18 @@ export default function LoginForm() {
         )}
       </div>
 
-      {/* Password */}
       <div className="space-y-1.5">
-        <label htmlFor="password" className="block text-sm font-medium text-slate-300">
-          Password
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="password" className="block text-sm font-medium text-slate-300">
+            Password
+          </label>
+          <Link
+            href="/forgot-password"
+            className="text-xs text-slate-500 transition-colors hover:text-[#22c55e]"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <input
           id="password"
           name="password"
@@ -52,7 +71,6 @@ export default function LoginForm() {
         )}
       </div>
 
-      {/* Submit */}
       <button
         type="submit"
         disabled={pending}

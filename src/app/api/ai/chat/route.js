@@ -1,47 +1,73 @@
 import { getSession } from '@/lib/session'
-import { getMessages, saveMessage } from '@/lib/db'
-import { streamChat } from '@/lib/gemini'
+import { getMessages, saveMessage, getProjects, getTasksForAiContext, getUserContext, appendContextItem, getContextCount, CONTEXT_LIMIT } from '@/lib/db'
+import { streamChat, buildProjectContext, extractContextItem } from '@/lib/gemini'
 
 export async function POST(request) {
-  // Verify session
   const session = await getSession()
   if (!session?.userId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { conversationId, content } = await request.json()
+  const { conversationId, content, projectIds = [] } = await request.json()
 
   if (!conversationId || !content?.trim()) {
     return Response.json({ error: 'Missing conversationId or content' }, { status: 400 })
   }
 
-  // Load conversation history (excluding the current message)
-  const history = await getMessages(conversationId, 40)
+  const hasProjectFilter = Array.isArray(projectIds) && projectIds.length > 0
 
-  // Persist the user message immediately
+  // Fetch everything in parallel; filter tasks by selected projects if provided
+  const [history, allProjects, tasks, contextItems] = await Promise.all([
+    getMessages(conversationId, 40),
+    getProjects(session.userId),
+    getTasksForAiContext(session.userId, hasProjectFilter ? projectIds : null),
+    getUserContext(session.userId),
+  ])
+
+  // Narrow the project list to only the selected ones when a filter is active
+  const projects = hasProjectFilter
+    ? allProjects.filter((p) => projectIds.includes(p.id))
+    : allProjects
+
+  const projectContext = buildProjectContext(
+    projects,
+    tasks,
+    new Date().toISOString().slice(0, 10)
+  )
+
   await saveMessage(conversationId, 'user', content.trim())
 
-  // Stream Gemini response
   let fullResponse = ''
 
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        fullResponse = await streamChat(content.trim(), history, (chunk) => {
-          controller.enqueue(new TextEncoder().encode(chunk))
-        })
-        // Persist the completed AI message
+        fullResponse = await streamChat(
+          content.trim(),
+          history,
+          (chunk) => controller.enqueue(new TextEncoder().encode(chunk)),
+          projectContext,
+          contextItems
+        )
+
         await saveMessage(conversationId, 'assistant', fullResponse)
+
+        const contextText = extractContextItem(fullResponse)
+        if (contextText) {
+          const count = await getContextCount(session.userId)
+          if (count < CONTEXT_LIMIT) {
+            appendContextItem(session.userId, contextText, conversationId).catch(() => {})
+          }
+        }
+
         controller.close()
       } catch (err) {
         console.error('[chat/route] Gemini error:', err)
-        // Persist a fallback assistant message so the reply is saved to the DB
         try {
           await saveMessage(conversationId, 'assistant', '\n\nSorry, I ran into an error. Please try again.')
         } catch (saveErr) {
           console.error('[chat/route] Failed to save error message:', saveErr)
         }
-
         controller.enqueue(
           new TextEncoder().encode('\n\nSorry, I ran into an error. Please try again.')
         )

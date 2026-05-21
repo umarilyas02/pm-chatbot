@@ -22,4 +22,5 @@ async function runMigration(file) {
 
 await runMigration('migrate.sql')
 await runMigration('migrate-chat.sql')
+await runMigration('migrate-context.sql')
 console.log('All migrations complete.')

@@ -29,7 +29,7 @@ export default async function NotificationsPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-2xl p-6">
+      <div className="p-6">
         <div className="mb-6">
           <h2 className="font-mono text-xl font-semibold text-[#f8fafc]">Notifications</h2>
           <p className="mt-1 text-sm text-slate-400">Your activity feed</p>

@@ -1,31 +1,58 @@
 import { NextResponse } from 'next/server'
-import { decrypt } from '@/lib/session'
+import { jwtVerify } from 'jose'
 
-const PUBLIC_ROUTES = ['/login', '/register']
-const AUTH_ROUTES = ['/login', '/register']
+const PUBLIC_PAGES = new Set([
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+])
 
-export async function proxy(req) {
-  const { pathname } = req.nextUrl
-  const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r))
-  const isAuth = AUTH_ROUTES.some((r) => pathname.startsWith(r))
+function isPublic(pathname) {
+  if (PUBLIC_PAGES.has(pathname)) return true
+  if (pathname.startsWith('/api/health')) return true
+  if (pathname.startsWith('/api/auth/')) return true
+  return false
+}
 
-  const token = req.cookies.get('session')?.value
-  const session = token ? await decrypt(token) : null
-  const isLoggedIn = !!session?.userId
+async function getSession(request) {
+  const token = request.cookies.get('session')?.value
+  if (!token) return null
+  try {
+    const secret = new TextEncoder().encode(process.env.SESSION_SECRET)
+    const { payload } = await jwtVerify(token, secret, { algorithms: ['HS256'] })
+    return payload
+  } catch {
+    return null
+  }
+}
 
-  // Redirect unauthenticated users away from protected routes
-  if (!isPublic && !isLoggedIn) {
-    return NextResponse.redirect(new URL('/login', req.nextUrl))
+export async function proxy(request) {
+  const { pathname } = request.nextUrl
+
+  if (isPublic(pathname)) {
+    if (PUBLIC_PAGES.has(pathname)) {
+      const session = await getSession(request)
+      if (session) {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+    }
+    return NextResponse.next()
   }
 
-  // Redirect authenticated users away from login/register
-  if (isAuth && isLoggedIn) {
-    return NextResponse.redirect(new URL('/dashboard', req.nextUrl))
+  const session = await getSession(request)
+  if (!session) {
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('from', pathname)
+    return NextResponse.redirect(loginUrl)
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)).*)',
+  ],
 }

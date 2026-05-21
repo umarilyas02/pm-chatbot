@@ -36,7 +36,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-6xl space-y-6 p-6">
+      <div className="space-y-6 p-6">
 
         {/* Header */}
         <div>

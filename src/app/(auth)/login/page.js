@@ -6,7 +6,9 @@ export const metadata = {
   title: 'Sign In — CreateX',
 }
 
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }) {
+  const { reset } = await searchParams
+
   return (
     <div className="glass rounded-2xl p-8">
       {/* Logo */}
@@ -19,6 +21,12 @@ export default function LoginPage() {
           <p className="mt-1 text-sm text-slate-400">Sign in to your CreateX workspace</p>
         </div>
       </div>
+
+      {reset && (
+        <p className="mb-4 rounded-lg bg-[#22c55e]/10 px-4 py-2.5 text-sm text-[#22c55e]">
+          Password updated. Sign in with your new password.
+        </p>
+      )}
 
       <LoginForm />
 
