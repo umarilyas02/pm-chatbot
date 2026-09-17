@@ -727,6 +727,343 @@ export async function cancelWorkspaceInvite(inviteId, workspaceId) {
   )
 }
 
+// ── Chat room queries ────────────────────────────────────────────────
+
+export async function getUserRooms(userId) {
+  const { rows } = await query(
+    `SELECT cr.id, cr.type, cr.project_id, cr.created_at,
+            p.name AS project_name,
+            lm.content AS last_message,
+            lm.created_at AS last_message_at,
+            lm.sender_id AS last_message_sender_id,
+            u.name AS last_message_sender_name,
+            (SELECT COUNT(*)::int
+             FROM chat_messages cm
+             WHERE cm.room_id = cr.id
+               AND cm.created_at > crlm.last_read_at
+               AND cm.sender_id != $1
+               AND cm.deleted = FALSE
+            ) AS unread_count
+     FROM chat_rooms cr
+     JOIN chat_room_members crm ON crm.room_id = cr.id AND crm.user_id = $1
+     LEFT JOIN projects p ON p.id = cr.project_id
+     LEFT JOIN LATERAL (
+       SELECT cm.content, cm.created_at, cm.sender_id
+       FROM chat_messages cm
+       WHERE cm.room_id = cr.id AND cm.deleted = FALSE
+       ORDER BY cm.created_at DESC
+       LIMIT 1
+     ) lm ON TRUE
+     LEFT JOIN users u ON u.id = lm.sender_id
+     LEFT JOIN chat_room_members crlm ON crlm.room_id = cr.id AND crlm.user_id = $1
+     ORDER BY lm.created_at DESC NULLS LAST, cr.created_at DESC`,
+    [userId]
+  )
+  return rows
+}
+
+export async function findDirectRoom(userId1, userId2) {
+  const { rows } = await query(
+    `SELECT cr.id
+     FROM chat_rooms cr
+     WHERE cr.type = 'direct'
+       AND EXISTS (SELECT 1 FROM chat_room_members WHERE room_id = cr.id AND user_id = $1)
+       AND EXISTS (SELECT 1 FROM chat_room_members WHERE room_id = cr.id AND user_id = $2)
+     LIMIT 1`,
+    [userId1, userId2]
+  )
+  return rows[0] ?? null
+}
+
+export async function createDirectRoom(userId1, userId2) {
+  const { rows } = await query(
+    `INSERT INTO chat_rooms (type) VALUES ('direct')
+     RETURNING id`,
+    []
+  )
+  const room = rows[0]
+  await query(
+    `INSERT INTO chat_room_members (room_id, user_id) VALUES ($1, $2), ($1, $3)`,
+    [room.id, userId1, userId2]
+  )
+  return room
+}
+
+export async function getOrCreateDirectRoom(userId1, userId2) {
+  if (userId1 === userId2) return null
+  const existing = await findDirectRoom(userId1, userId2)
+  if (existing) return existing
+  return createDirectRoom(userId1, userId2)
+}
+
+export async function findProjectRoom(projectId) {
+  const { rows } = await query(
+    `SELECT id FROM chat_rooms WHERE type = 'project' AND project_id = $1 LIMIT 1`,
+    [projectId]
+  )
+  return rows[0] ?? null
+}
+
+export async function createProjectRoom(projectId) {
+  const { rows } = await query(
+    `INSERT INTO chat_rooms (type, project_id) VALUES ('project', $1)
+     RETURNING id`,
+    [projectId]
+  )
+  return rows[0]
+}
+
+export async function getOrCreateProjectRoom(projectId) {
+  const existing = await findProjectRoom(projectId)
+  if (existing) return existing
+  return createProjectRoom(projectId)
+}
+
+export async function addWorkspaceMembersToRoom(roomId, workspaceId) {
+  await query(
+    `INSERT INTO chat_room_members (room_id, user_id)
+     SELECT $1, wm.user_id
+     FROM workspace_members wm
+     WHERE wm.workspace_id = $2
+     ON CONFLICT (room_id, user_id) DO NOTHING`,
+    [roomId, workspaceId]
+  )
+}
+
+export async function getRoomMembers(roomId) {
+  const { rows } = await query(
+    `SELECT u.id, u.name, u.email, u.avatar_url, crm.joined_at, crm.push_enabled
+     FROM chat_room_members crm
+     JOIN users u ON u.id = crm.user_id
+     WHERE crm.room_id = $1
+     ORDER BY crm.joined_at ASC`,
+    [roomId]
+  )
+  return rows
+}
+
+export async function isRoomMember(roomId, userId) {
+  const { rows } = await query(
+    `SELECT 1 FROM chat_room_members WHERE room_id = $1 AND user_id = $2`,
+    [roomId, userId]
+  )
+  return rows.length > 0
+}
+
+export async function getRoomById(roomId) {
+  const { rows } = await query(
+    `SELECT cr.id, cr.type, cr.project_id, cr.created_at,
+            p.name AS project_name
+     FROM chat_rooms cr
+     LEFT JOIN projects p ON p.id = cr.project_id
+     WHERE cr.id = $1
+     LIMIT 1`,
+    [roomId]
+  )
+  return rows[0] ?? null
+}
+
+// ── Chat message queries ─────────────────────────────────────────────
+
+export async function getRoomMessages(roomId, cursor = null, limit = 50) {
+  if (cursor) {
+    const { rows } = await query(
+      `SELECT cm.id, cm.sender_id, cm.content, cm.edited, cm.edited_at,
+              cm.deleted, cm.deleted_at, cm.created_at,
+              u.name AS sender_name, u.avatar_url AS sender_avatar
+       FROM chat_messages cm
+       JOIN users u ON u.id = cm.sender_id
+       WHERE cm.room_id = $1 AND cm.created_at < $2
+       ORDER BY cm.created_at DESC
+       LIMIT $3`,
+      [roomId, cursor, limit]
+    )
+    return rows
+  }
+  const { rows } = await query(
+    `SELECT cm.id, cm.sender_id, cm.content, cm.edited, cm.edited_at,
+            cm.deleted, cm.deleted_at, cm.created_at,
+            u.name AS sender_name, u.avatar_url AS sender_avatar
+     FROM chat_messages cm
+     JOIN users u ON u.id = cm.sender_id
+     WHERE cm.room_id = $1
+     ORDER BY cm.created_at DESC
+     LIMIT $2`,
+    [roomId, limit]
+  )
+  return rows
+}
+
+export async function createChatMessage(roomId, senderId, content) {
+  const { rows } = await query(
+    `INSERT INTO chat_messages (room_id, sender_id, content)
+     VALUES ($1, $2, $3)
+     RETURNING id, room_id, sender_id, content, edited, edited_at,
+               deleted, deleted_at, created_at`,
+    [roomId, senderId, content]
+  )
+  return rows[0]
+}
+
+export async function editChatMessage(messageId, userId, newContent) {
+  const { rows } = await query(
+    `UPDATE chat_messages
+     SET content = $3, edited = TRUE, edited_at = NOW()
+     WHERE id = $1 AND sender_id = $2
+     RETURNING id, room_id, sender_id, content, edited, edited_at,
+               deleted, deleted_at, created_at`,
+    [messageId, userId, newContent]
+  )
+  return rows[0] ?? null
+}
+
+export async function deleteChatMessage(messageId, userId) {
+  const { rows } = await query(
+    `UPDATE chat_messages
+     SET deleted = TRUE, deleted_at = NOW(), content = ''
+     WHERE id = $1
+       AND sender_id = $2
+       AND created_at > NOW() - INTERVAL '30 seconds'
+     RETURNING id, room_id`,
+    [messageId, userId]
+  )
+  return rows[0] ?? null
+}
+
+export async function updateLastRead(roomId, userId) {
+  await query(
+    `UPDATE chat_room_members
+     SET last_read_at = NOW()
+     WHERE room_id = $1 AND user_id = $2`,
+    [roomId, userId]
+  )
+}
+
+export async function getMessageById(messageId) {
+  const { rows } = await query(
+    `SELECT cm.id, cm.room_id, cm.sender_id, cm.content, cm.created_at
+     FROM chat_messages cm
+     WHERE cm.id = $1
+     LIMIT 1`,
+    [messageId]
+  )
+  return rows[0] ?? null
+}
+
+// ── Chat reaction queries ────────────────────────────────────────────
+
+export async function getMessageReactions(messageId) {
+  const { rows } = await query(
+    `SELECT cr.id, cr.emoji, cr.user_id, cr.created_at,
+            u.name AS user_name
+     FROM chat_reactions cr
+     JOIN users u ON u.id = cr.user_id
+     WHERE cr.message_id = $1
+     ORDER BY cr.created_at ASC`,
+    [messageId]
+  )
+  return rows
+}
+
+export async function toggleReaction(messageId, userId, emoji) {
+  const existing = await query(
+    `SELECT id FROM chat_reactions
+     WHERE message_id = $1 AND user_id = $2 AND emoji = $3`,
+    [messageId, userId, emoji]
+  )
+  if (existing.rows.length > 0) {
+    await query(
+      `DELETE FROM chat_reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3`,
+      [messageId, userId, emoji]
+    )
+    return { added: false, emoji }
+  }
+  await query(
+    `INSERT INTO chat_reactions (message_id, user_id, emoji)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (message_id, user_id, emoji) DO NOTHING`,
+    [messageId, userId, emoji]
+  )
+  return { added: true, emoji }
+}
+
+// ── Chat meeting queries ─────────────────────────────────────────────
+
+export async function getActiveMeeting(roomId) {
+  const { rows } = await query(
+    `SELECT cm.id, cm.created_by, cm.type, cm.status, cm.started_at,
+            u.name AS creator_name
+     FROM chat_meetings cm
+     JOIN users u ON u.id = cm.created_by
+     WHERE cm.room_id = $1 AND cm.status = 'active'
+     LIMIT 1`,
+    [roomId]
+  )
+  return rows[0] ?? null
+}
+
+export async function createMeeting(roomId, userId, type) {
+  const { rows } = await query(
+    `INSERT INTO chat_meetings (room_id, created_by, type)
+     VALUES ($1, $2, $3)
+     RETURNING id, room_id, created_by, type, status, started_at`,
+    [roomId, userId, type]
+  )
+  return rows[0]
+}
+
+export async function endMeeting(meetingId) {
+  const { rows } = await query(
+    `UPDATE chat_meetings
+     SET status = 'ended', ended_at = NOW()
+     WHERE id = $1 AND status = 'active'
+     RETURNING id, room_id`,
+    [meetingId]
+  )
+  return rows[0] ?? null
+}
+
+// ── Push subscription queries ────────────────────────────────────────
+
+export async function savePushSubscription(userId, subscription) {
+  const { endpoint, keys } = subscription
+  await query(
+    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+    [userId, endpoint, keys.p256dh, keys.auth]
+  )
+}
+
+export async function removePushSubscription(endpoint) {
+  await query(
+    `DELETE FROM push_subscriptions WHERE endpoint = $1`,
+    [endpoint]
+  )
+}
+
+export async function getPushSubscriptionsForRoom(roomId, excludeUserId) {
+  const { rows } = await query(
+    `SELECT ps.endpoint, ps.p256dh, ps.auth
+     FROM push_subscriptions ps
+     JOIN chat_room_members crm ON crm.user_id = ps.user_id
+     WHERE crm.room_id = $1
+       AND crm.user_id != $2
+       AND crm.push_enabled = TRUE`,
+    [roomId, excludeUserId]
+  )
+  return rows
+}
+
+export async function setRoomPushEnabled(roomId, userId, enabled) {
+  await query(
+    `UPDATE chat_room_members
+     SET push_enabled = $3
+     WHERE room_id = $1 AND user_id = $2`,
+    [roomId, userId, enabled]
+  )
+}
+
 // ── Overdue cron query ───────────────────────────────────────────────
 
 export async function getNewlyOverdueTasks() {
