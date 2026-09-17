@@ -1,5 +1,6 @@
 import { getSession } from '@/lib/session'
 import { getProjects, createProject, getPrimaryWorkspace } from '@/lib/db'
+import { getOrCreateProjectRoom, addWorkspaceMembersToRoom } from '@/lib/db'
 
 export async function GET() {
   const session = await getSession()
@@ -28,6 +29,9 @@ export async function POST(request) {
     name: name.trim(),
     description: description?.trim() || null,
   })
+
+  const room = await getOrCreateProjectRoom(project.id)
+  await addWorkspaceMembersToRoom(room.id, workspace.id)
 
   return Response.json(project, { status: 201 })
 }
