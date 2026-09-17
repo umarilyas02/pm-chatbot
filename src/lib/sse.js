@@ -26,6 +26,38 @@ export function broadcastToUsers(userIds, payload) {
 }
 
 /**
+ * Broadcast an event to all members of a chat room.
+ * Queries room members and broadcasts to each.
+ * @param {string} roomId
+ * @param {{ type: string, [key: string]: unknown }} payload
+ * @param {object} pool - optional pg Pool for query (uses default if not provided)
+ */
+export async function broadcastToRoom(roomId, payload) {
+  const { Pool } = await import('pg')
+  const isLocal = process.env.DATABASE_URL?.includes('localhost') ||
+                  process.env.DATABASE_URL?.includes('127.0.0.1')
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 10,
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 30_000,
+    ssl: isLocal ? false : { rejectUnauthorized: false },
+  })
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT user_id FROM chat_room_members WHERE room_id = $1`,
+      [roomId]
+    )
+    for (const row of rows) {
+      broadcast(row.user_id, payload)
+    }
+  } finally {
+    await pool.end()
+  }
+}
+
+/**
  * Subscribe to events for a user. Returns an unsubscribe function.
  * @param {string} userId
  * @param {(payload: unknown) => void} callback
