@@ -13,6 +13,7 @@ import {
   Zap,
   X,
   Users,
+  MessageCircle,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { href: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/chat',          icon: MessageSquare,   label: 'AI Chat' },
+  { href: '/messages',      icon: MessageCircle,   label: 'Messages' },
   { href: '/projects',      icon: FolderKanban,    label: 'Projects' },
   { href: '/team',          icon: Users,           label: 'Team' },
   { href: '/notifications', icon: Bell,            label: 'Notifications' },
