@@ -19,6 +19,19 @@ const firaSans = Fira_Sans({
 export const metadata = {
   title: 'CreateX — AI Project Management',
   description: 'AI-powered project management and team collaboration workspace.',
+  openGraph: {
+    title: 'CreateX — AI Project Management',
+    description: 'AI-powered project management and team collaboration workspace.',
+    type: 'website',
+    siteName: 'CreateX',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'CreateX — AI Project Management',
+    description: 'AI-powered project management and team collaboration workspace.',
+  },
+  manifest: '/manifest.json',
 }
 
 export default function RootLayout({ children }) {
