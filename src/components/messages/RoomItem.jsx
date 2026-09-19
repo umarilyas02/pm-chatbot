@@ -22,9 +22,17 @@ export default function RoomItem({ room, active, currentUserId, onClick, onUpdat
 
   return (
     <li>
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
-        className={`w-full flex items-start gap-3 px-3 py-2.5 transition-colors ${
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onClick?.()
+          }
+        }}
+        className={`group w-full flex items-start gap-3 px-3 py-2.5 transition-colors cursor-pointer ${
           active
             ? 'bg-[#22c55e]/5 border-l-2 border-[#22c55e]'
             : 'hover:bg-white/[0.02]'
@@ -93,7 +101,7 @@ export default function RoomItem({ room, active, currentUserId, onClick, onUpdat
             </div>
           )}
         </div>
-      </button>
+      </div>
     </li>
   )
 }

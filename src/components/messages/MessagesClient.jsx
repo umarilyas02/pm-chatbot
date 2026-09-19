@@ -22,7 +22,7 @@ export default function MessagesClient({
     if (workspaceId && !workspaceMembers.length) {
       fetch(`/api/workspace/members`)
         .then((r) => r.json())
-        .then((data) => setWorkspaceMembers(data.members))
+        .then((data) => Array.isArray(data) && setWorkspaceMembers(data))
         .catch(() => {})
     }
   }, [workspaceId, workspaceMembers.length])
