@@ -26,9 +26,16 @@ export function useMeeting(meeting, roomId, joined) {
   const localStreamRef = useRef(null)
   const joinedRef = useRef(joined)
   const meetingIdRef = useRef(meeting?.id)
+  const meetingTypeRef = useRef(meeting?.type)
 
-  joinedRef.current = joined
-  meetingIdRef.current = meeting?.id
+  useEffect(() => {
+    joinedRef.current = joined
+  }, [joined])
+
+  useEffect(() => {
+    meetingIdRef.current = meeting?.id
+    meetingTypeRef.current = meeting?.type
+  }, [meeting?.id, meeting?.type])
 
   useEffect(() => {
     if (!joined || !meeting) return
@@ -78,8 +85,9 @@ export function useMeeting(meeting, roomId, joined) {
     return () => {
       peer.destroy()
       peerRef.current = null
-      connectionsRef.current.forEach((call) => call.close())
-      connectionsRef.current.clear()
+      const calls = connectionsRef.current
+      calls.forEach((call) => call.close())
+      calls.clear()
     }
   }, [joined, roomId, meeting?.id])
 
@@ -88,7 +96,7 @@ export function useMeeting(meeting, roomId, joined) {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: meeting?.type === 'video',
+        video: meetingTypeRef.current === 'video',
         audio: true,
       })
       localStreamRef.current = stream
@@ -99,7 +107,7 @@ export function useMeeting(meeting, roomId, joined) {
       setError('Failed to access camera/microphone')
       throw err
     }
-  }, [meeting?.type])
+  }, [])
 
   const leaveMeeting = useCallback(async () => {
     if (localStreamRef.current) {

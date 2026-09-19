@@ -4,54 +4,14 @@ export function useChat(roomId, handlers = {}) {
   const eventSourceRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
   const handlersRef = useRef(handlers)
+  const handleEventRef = useRef(null)
+  const connectRef = useRef(null)
 
   useEffect(() => {
     handlersRef.current = handlers
   }, [handlers])
 
-  const connect = useCallback(() => {
-    if (!roomId) return
-    if (eventSourceRef.current) return
-
-    const url = `/api/realtime/chat?roomId=${encodeURIComponent(roomId)}`
-    const es = new EventSource(url)
-    eventSourceRef.current = es
-
-    es.onopen = () => {
-      console.log('[Chat] SSE connected')
-    }
-
-    es.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data)
-        handleEvent(payload)
-      } catch (e) {
-        console.warn('[Chat] Failed to parse SSE message:', e)
-      }
-    }
-
-    es.onerror = (err) => {
-      console.error('[Chat] SSE error:', err)
-      es.close()
-      eventSourceRef.current = null
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connect()
-      }, 3000)
-    }
-  }, [roomId])
-
-  const disconnect = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-      reconnectTimeoutRef.current = null
-    }
-  }, [])
-
-  const handleEvent = (payload) => {
+  const handleEvent = useCallback((payload) => {
     const { type } = payload
 
     switch (type) {
@@ -100,7 +60,57 @@ export function useChat(roomId, handlers = {}) {
       default:
         console.log('[Chat] Unknown event type:', type)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    handleEventRef.current = handleEvent
+  }, [handleEvent])
+
+  const connect = useCallback(() => {
+    if (!roomId) return
+    if (eventSourceRef.current) return
+
+    const url = `/api/realtime/chat?roomId=${encodeURIComponent(roomId)}`
+    const es = new EventSource(url)
+    eventSourceRef.current = es
+
+    es.onopen = () => {
+      console.log('[Chat] SSE connected')
+    }
+
+    es.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data)
+        handleEventRef.current?.(payload)
+      } catch (e) {
+        console.warn('[Chat] Failed to parse SSE message:', e)
+      }
+    }
+
+    es.onerror = (err) => {
+      console.error('[Chat] SSE error:', err)
+      es.close()
+      eventSourceRef.current = null
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connectRef.current?.()
+      }, 3000)
+    }
+  }, [roomId])
+
+  useEffect(() => {
+    connectRef.current = connect
+  }, [connect])
+
+  const disconnect = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+  }, [])
 
   const sendMessage = useCallback(async (content) => {
     if (!roomId) return

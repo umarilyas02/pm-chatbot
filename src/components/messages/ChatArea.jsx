@@ -20,7 +20,64 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
   const messagesEndRef = useRef(null)
   const observerRef = useRef(null)
 
-  const { connect, disconnect, sendMessage } = useChat(room?.id, {
+  const roomId = room?.id
+
+  const loadMessages = useCallback(async (reset = false) => {
+    if (!roomId || loadingMore) return
+    if (reset) {
+      setLoading(true)
+      setCursor(null)
+    } else {
+      setLoadingMore(true)
+    }
+
+    try {
+      const params = new URLSearchParams()
+      if (cursor) params.set('cursor', cursor)
+      params.set('limit', '50')
+
+      const res = await fetch(`/api/chat/rooms/${roomId}/messages?${params}`)
+      if (!res.ok) throw new Error('Failed to load')
+
+      const data = await res.json()
+      const newMessages = data.messages ?? []
+
+      if (reset) {
+        setMessages(newMessages.reverse())
+        setCursor(newMessages.length > 0 ? newMessages[newMessages.length - 1].created_at : null)
+      } else {
+        setMessages((prev) => [...newMessages.reverse(), ...prev])
+        setCursor(newMessages.length > 0 ? newMessages[newMessages.length - 1].created_at : null)
+      }
+      setHasMore(newMessages.length === 50)
+    } catch {
+      toast.error('Failed to load messages')
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }, [roomId, cursor, loadingMore])
+
+  const fetchActiveMeeting = useCallback(async () => {
+    if (!roomId) return
+    try {
+      const res = await fetch(`/api/chat/rooms/${roomId}/meetings`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.meeting) setActiveMeeting(data.meeting)
+      }
+    } catch {}
+  }, [roomId])
+
+  const handleMarkRead = useCallback(async () => {
+    if (!roomId) return
+    try {
+      await fetch(`/api/chat/rooms/${roomId}/read`, { method: 'PUT' })
+      onRoomUpdate?.({ ...room, unread_count: 0 })
+    } catch {}
+  }, [roomId, onRoomUpdate, room])
+
+  const { connect, disconnect } = useChat(roomId, {
     onMessage: (msg) => setMessages((prev) => [...prev, msg]),
     onEdit: (msg) =>
       setMessages((prev) =>
@@ -58,7 +115,9 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
   })
 
   useEffect(() => {
-    if (!room?.id) return
+    if (!roomId) return
+    // setState in async function called from effect is expected pattern
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMessages()
     connect()
     fetchActiveMeeting()
@@ -66,53 +125,7 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
       disconnect()
       if (observerRef.current) observerRef.current.disconnect()
     }
-  }, [room?.id])
-
-  async function fetchActiveMeeting() {
-    try {
-      const res = await fetch(`/api/chat/rooms/${room.id}/meetings`)
-      if (res.ok) {
-        const data = await res.json()
-        if (data.meeting) setActiveMeeting(data.meeting)
-      }
-    } catch {}
-  }
-
-  async function loadMessages(reset = false) {
-    if (!room?.id || loadingMore) return
-    if (reset) {
-      setLoading(true)
-      setCursor(null)
-    } else {
-      setLoadingMore(true)
-    }
-
-    try {
-      const params = new URLSearchParams()
-      if (cursor) params.set('cursor', cursor)
-      params.set('limit', '50')
-
-      const res = await fetch(`/api/chat/rooms/${room.id}/messages?${params}`)
-      if (!res.ok) throw new Error('Failed to load')
-
-      const data = await res.json()
-      const newMessages = data.messages ?? []
-
-      if (reset) {
-        setMessages(newMessages.reverse())
-        setCursor(newMessages.length > 0 ? newMessages[newMessages.length - 1].created_at : null)
-      } else {
-        setMessages((prev) => [...newMessages.reverse(), ...prev])
-        setCursor(newMessages.length > 0 ? newMessages[newMessages.length - 1].created_at : null)
-      }
-      setHasMore(newMessages.length === 50)
-    } catch {
-      toast.error('Failed to load messages')
-    } finally {
-      setLoading(false)
-      setLoadingMore(false)
-    }
-  }
+  }, [roomId, loadMessages, connect, disconnect, fetchActiveMeeting])
 
   function handleScroll(e) {
     const target = e.target
@@ -135,7 +148,7 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
     const sentinel = document.getElementById('load-more-sentinel')
     if (sentinel) observerRef.current.observe(sentinel)
     return () => observerRef.current?.disconnect()
-  }, [hasMore, loadingMore])
+  }, [hasMore, loadingMore, loadMessages])
 
   function scrollToBottom() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -144,6 +157,10 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    handleMarkRead()
+  }, [room?.id, handleMarkRead])
 
   async function handleSend(content) {
     const tempId = crypto.randomUUID()
@@ -162,7 +179,7 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
     scrollToBottom()
 
     try {
-      const res = await fetch(`/api/chat/rooms/${room.id}/messages`, {
+      const res = await fetch(`/api/chat/rooms/${roomId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
@@ -180,7 +197,7 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
 
   async function handleEdit(messageId, newContent) {
     try {
-      const res = await fetch(`/api/chat/rooms/${room.id}/messages/${messageId}`, {
+      const res = await fetch(`/api/chat/rooms/${roomId}/messages/${messageId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: newContent }),
@@ -193,7 +210,7 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
 
   async function handleDelete(messageId) {
     try {
-      const res = await fetch(`/api/chat/rooms/${room.id}/messages/${messageId}`, {
+      const res = await fetch(`/api/chat/rooms/${roomId}/messages/${messageId}`, {
         method: 'DELETE',
       })
       if (!res.ok) {
@@ -207,7 +224,7 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
 
   async function handleToggleReaction(messageId, emoji) {
     try {
-      const res = await fetch(`/api/chat/rooms/${room.id}/messages/${messageId}/reactions`, {
+      const res = await fetch(`/api/chat/rooms/${roomId}/messages/${messageId}/reactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ emoji }),
@@ -218,23 +235,12 @@ export default function ChatArea({ room, currentUserId, onRoomUpdate }) {
     }
   }
 
-  async function handleMarkRead() {
-    try {
-      await fetch(`/api/chat/rooms/${room.id}/read`, { method: 'PUT' })
-      onRoomUpdate?.({ ...room, unread_count: 0 })
-    } catch {}
-  }
-
-  useEffect(() => {
-    handleMarkRead()
-  }, [room?.id])
-
   if (!room) return null
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <RoomHeader room={room} activeMeeting={activeMeeting} />
-      {activeMeeting && <MeetingBanner meeting={activeMeeting} roomId={room.id} />}
+      {activeMeeting && <MeetingBanner meeting={activeMeeting} roomId={roomId} />}
       <div
         className="flex-1 overflow-y-auto px-4 py-6 md:px-8"
         onScroll={handleScroll}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Edit, Trash2, Smile, MoreHorizontal, ChevronDown } from 'lucide-react'
 import Reactions from './Reactions'
 import ReactionPicker from './ReactionPicker'
@@ -22,7 +22,17 @@ export default function MessageBubble({
   const isOwn = message.sender_id === currentUserId
   const isDeleted = message.deleted === true
   const isEdited = message.edited === true
-  const timeAgo = formatTimeAgo(new Date(message.created_at))
+
+  const timeAgo = useMemo(() => formatTimeAgo(new Date(message.created_at)), [message.created_at])
+
+  const canDelete = useMemo(() => {
+    if (!isOwn) return false
+    if (isDeleted) return false
+    // eslint-disable-next-line react-hooks/purity
+    const now = Date.now()
+    const age = now - new Date(message.created_at).getTime()
+    return age <= 30 * 1000
+  }, [isOwn, isDeleted, message.created_at])
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -49,13 +59,6 @@ export default function MessageBubble({
 
   function handleToggleReaction(emoji) {
     onToggleReaction(message.id, emoji)
-  }
-
-  function canDelete() {
-    if (!isOwn) return false
-    if (isDeleted) return false
-    const age = Date.now() - new Date(message.created_at).getTime()
-    return age <= 30 * 1000
   }
 
   if (isDeleted) {
@@ -163,7 +166,7 @@ export default function MessageBubble({
               <Edit className="h-3.5 w-3.5" />
               Edit
             </button>
-            {canDelete() && (
+            {canDelete && (
               <button
                 onClick={handleDelete}
                 className="flex items-center gap-1.5 px-2 py-1 text-sm text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
