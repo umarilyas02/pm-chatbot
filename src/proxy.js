@@ -19,8 +19,16 @@ const PUBLIC_PAGES = new Set([
   '/accept-invite',
 ])
 
+// Generated metadata assets — favicons, the OG/Twitter card image, and the PWA
+// manifest. These must be reachable with no session: browsers fetch them for
+// every visitor (logged in or not) and social-media link-preview crawlers
+// never carry a session cookie at all. Without this, the site's favicon breaks
+// for anyone before they log in and link previews on Slack/Twitter/etc. fail.
+const PUBLIC_ASSETS = new Set(['/icon', '/apple-icon', '/opengraph-image', '/manifest.json'])
+
 function isPublic(pathname) {
   if (PUBLIC_PAGES.has(pathname)) return true
+  if (PUBLIC_ASSETS.has(pathname)) return true
   if (pathname.startsWith('/api/health')) return true
   if (pathname.startsWith('/api/auth/')) return true
   return false

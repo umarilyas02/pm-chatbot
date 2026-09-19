@@ -16,7 +16,15 @@ const firaSans = Fira_Sans({
   display: 'swap',
 })
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+
+export const viewport = {
+  themeColor: '#22c55e',
+  colorScheme: 'dark',
+}
+
 export const metadata = {
+  metadataBase: new URL(APP_URL),
   title: 'CreateX — AI Project Management',
   description: 'AI-powered project management and team collaboration workspace.',
   openGraph: {
