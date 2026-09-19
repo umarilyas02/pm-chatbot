@@ -66,6 +66,19 @@ export async function deleteUser(id) {
   await query('DELETE FROM users WHERE id = $1', [id])
 }
 
+export async function getSessionVersion(userId) {
+  const { rows } = await query('SELECT session_version FROM users WHERE id = $1', [userId])
+  return rows[0]?.session_version ?? null
+}
+
+export async function bumpSessionVersion(userId) {
+  const { rows } = await query(
+    'UPDATE users SET session_version = session_version + 1 WHERE id = $1 RETURNING session_version',
+    [userId]
+  )
+  return rows[0]?.session_version ?? null
+}
+
 export async function getUserWithHash(id) {
   const { rows } = await query(
     'SELECT id, name, email, role, password_hash FROM users WHERE id = $1 LIMIT 1',
@@ -552,6 +565,11 @@ export async function deleteNotifications(userId, ids = null) {
 }
 
 // ── Workspace queries ────────────────────────────────────────────────
+
+export async function countWorkspaces() {
+  const { rows } = await query('SELECT COUNT(*)::int AS count FROM workspaces', [])
+  return rows[0].count
+}
 
 export async function createWorkspace({ ownerId, name }) {
   const { rows } = await query(

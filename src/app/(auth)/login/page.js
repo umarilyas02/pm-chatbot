@@ -7,7 +7,7 @@ export const metadata = {
 }
 
 export default async function LoginPage({ searchParams }) {
-  const { reset } = await searchParams
+  const { reset, from } = await searchParams
 
   return (
     <div className="glass rounded-2xl p-8">
@@ -28,12 +28,12 @@ export default async function LoginPage({ searchParams }) {
         </p>
       )}
 
-      <LoginForm />
+      <LoginForm from={typeof from === 'string' ? from : undefined} />
 
       <p className="mt-6 text-center text-sm text-slate-500">
         Don&apos;t have an account?{' '}
         <Link
-          href="/register"
+          href={from ? `/register?from=${encodeURIComponent(from)}` : '/register'}
           className="font-medium text-[#22c55e] transition-colors hover:text-[#16a34a]"
         >
           Create one

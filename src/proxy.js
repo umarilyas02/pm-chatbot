@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const PUBLIC_PAGES = new Set([
+// Pages that redirect an already-authenticated visitor straight to /dashboard —
+// there's nothing for a logged-in user to do on a login/register/reset screen.
+const REDIRECT_IF_AUTHENTICATED = new Set([
   '/login',
   '/register',
   '/forgot-password',
   '/reset-password',
+])
+
+// Public pages that stay reachable regardless of auth state. /accept-invite in
+// particular MUST stay reachable while logged in — accepting an invite as the
+// currently signed-in user is the normal case, not an edge case.
+const PUBLIC_PAGES = new Set([
+  ...REDIRECT_IF_AUTHENTICATED,
   '/verify-email',
   '/accept-invite',
 ])
@@ -33,7 +42,7 @@ export async function proxy(request) {
   const { pathname } = request.nextUrl
 
   if (isPublic(pathname)) {
-    if (PUBLIC_PAGES.has(pathname)) {
+    if (REDIRECT_IF_AUTHENTICATED.has(pathname)) {
       const session = await getSession(request)
       if (session) {
         return NextResponse.redirect(new URL('/dashboard', request.url))

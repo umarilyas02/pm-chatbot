@@ -6,7 +6,10 @@ export const metadata = {
   title: 'Create Account — CreateX',
 }
 
-export default function RegisterPage() {
+export default async function RegisterPage({ searchParams }) {
+  const { from } = await searchParams
+  const fromPath = typeof from === 'string' ? from : undefined
+
   return (
     <div className="glass rounded-2xl p-8">
       {/* Logo */}
@@ -20,12 +23,12 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      <RegisterForm />
+      <RegisterForm from={fromPath} />
 
       <p className="mt-6 text-center text-sm text-slate-500">
         Already have an account?{' '}
         <Link
-          href="/login"
+          href={fromPath ? `/login?from=${encodeURIComponent(fromPath)}` : '/login'}
           className="font-medium text-[#22c55e] transition-colors hover:text-[#16a34a]"
         >
           Sign in

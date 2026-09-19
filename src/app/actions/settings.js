@@ -3,8 +3,8 @@
 import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
-import { getSession } from '@/lib/session'
-import { updateUser, getUserWithHash } from '@/lib/db'
+import { getSession, createSession } from '@/lib/session'
+import { updateUser, getUserWithHash, bumpSessionVersion } from '@/lib/db'
 
 const ProfileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').trim(),
@@ -62,5 +62,11 @@ export async function changePassword(state, formData) {
 
   const hash = await bcrypt.hash(parsed.data.newPassword, 12)
   await updateUser(session.userId, { password_hash: hash })
+
+  // Invalidate sessions on any other device, but keep this one signed in
+  // by re-issuing a fresh session with the new version.
+  const newVersion = await bumpSessionVersion(session.userId)
+  await createSession(session.userId, newVersion)
+
   return { success: 'Password changed successfully' }
 }

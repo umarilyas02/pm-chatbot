@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import ResendVerificationForm from '@/components/auth/ResendVerificationForm'
 
-export default function LoginForm() {
+export default function LoginForm({ from }) {
   const [state, action, pending] = useActionState(login, undefined)
 
   // Email not verified — show resend flow instead of generic error
@@ -23,6 +23,7 @@ export default function LoginForm() {
 
   return (
     <form action={action} className="space-y-4">
+      {from && <input type="hidden" name="from" value={from} />}
       {state?.message && (
         <p className="rounded-lg bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
           {state.message}

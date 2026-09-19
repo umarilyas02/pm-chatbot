@@ -11,6 +11,7 @@ import {
   acceptWorkspaceInvite,
   isWorkspaceMember,
   findUserByEmail,
+  findUserById,
 } from '@/lib/db'
 import { sendWorkspaceInviteEmail } from '@/lib/email'
 import { rateLimit } from '@/lib/ratelimit'
@@ -32,7 +33,7 @@ export async function inviteMember({ workspaceId, email }) {
   if (!session?.userId) return { error: 'Unauthorized' }
 
   const ip = await getIP()
-  const { ok, retryAfter } = rateLimit(`invite:${ip}`, { limit: 10, windowMs: 60 * 60 * 1000 })
+  const { ok, retryAfter } = await rateLimit(`invite:${ip}`, { limit: 10, windowMs: 60 * 60 * 1000 })
   if (!ok) return { error: `Too many invites. Try again in ${retryAfter}s.` }
 
   const workspace = await getPrimaryWorkspace(session.userId)
@@ -60,8 +61,6 @@ export async function inviteMember({ workspaceId, email }) {
   })
 
   try {
-    // Need inviter name — fetch from DB via session
-    const { findUserById } = await import('@/lib/db')
     const inviter = await findUserById(session.userId)
     await sendWorkspaceInviteEmail(email, {
       inviterName: inviter?.name ?? 'Someone',
@@ -118,6 +117,13 @@ export async function acceptInvite(token) {
 
   const invite = await getWorkspaceInviteByToken(token)
   if (!invite) return { error: 'This invite link is invalid or has expired.' }
+
+  const currentUser = await findUserById(session.userId)
+  if (currentUser?.email.toLowerCase() !== invite.email.toLowerCase()) {
+    return {
+      error: `This invite was sent to ${invite.email}. Sign in with that email to accept it.`,
+    }
+  }
 
   await acceptWorkspaceInvite(invite.id, invite.workspace_id, session.userId)
   revalidatePath('/team')

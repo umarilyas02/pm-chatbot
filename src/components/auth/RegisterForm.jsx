@@ -4,11 +4,12 @@ import { useActionState } from 'react'
 import { register } from '@/app/actions/auth'
 import { Loader2 } from 'lucide-react'
 
-export default function RegisterForm() {
+export default function RegisterForm({ from }) {
   const [state, action, pending] = useActionState(register, undefined)
 
   return (
     <form action={action} className="space-y-4">
+      {from && <input type="hidden" name="from" value={from} />}
       {/* Global error */}
       {state?.message && (
         <p className="rounded-lg bg-red-500/10 px-4 py-2.5 text-sm text-red-400">

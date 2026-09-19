@@ -1,31 +1,34 @@
-import { Zap, CheckCircle, XCircle, Mail } from 'lucide-react'
+import { Zap, XCircle, Mail } from 'lucide-react'
 import Link from 'next/link'
-import { verifyEmail } from '@/app/actions/auth'
+import { checkVerificationToken } from '@/app/actions/auth'
 import ResendVerificationForm from '@/components/auth/ResendVerificationForm'
+import ConfirmEmailForm from '@/components/auth/ConfirmEmailForm'
 
 export const metadata = { title: 'Verify Email — CreateX' }
 
 export default async function VerifyEmailPage({ searchParams }) {
-  const { token } = await searchParams
+  const { token, from } = await searchParams
+  const loginHref = typeof from === 'string' ? `/login?from=${encodeURIComponent(from)}` : '/login'
 
-  // Token present → attempt verification
+  // Token present → show a confirm screen. Verification only happens once the
+  // user explicitly clicks "Confirm email" (not just from loading this page) —
+  // otherwise email-security link scanners burn the single-use token before
+  // the real person ever clicks it.
   if (token) {
-    const result = await verifyEmail(token)
+    const check = await checkVerificationToken(token)
 
-    if (result.success) {
+    if (check.alreadyVerified) {
       return (
         <div className="glass rounded-2xl p-8 text-center">
           <div className="mb-6 flex flex-col items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#22c55e]/20">
-              <CheckCircle className="h-6 w-6 text-[#22c55e]" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#22c55e]">
+              <Zap className="h-5 w-5 text-white" />
             </div>
-            <h1 className="font-mono text-xl font-semibold text-[#f8fafc]">Email verified</h1>
-            <p className="text-sm text-slate-400">
-              {result.email} is now confirmed. You can sign in.
-            </p>
+            <h1 className="font-mono text-xl font-semibold text-[#f8fafc]">Already verified</h1>
+            <p className="text-sm text-slate-400">{check.email} is already confirmed.</p>
           </div>
           <Link
-            href="/login"
+            href={loginHref}
             className="inline-flex items-center justify-center rounded-lg bg-[#22c55e] px-6 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
             Sign in
@@ -34,17 +37,32 @@ export default async function VerifyEmailPage({ searchParams }) {
       )
     }
 
+    if (check.error) {
+      return (
+        <div className="glass rounded-2xl p-8 text-center">
+          <div className="mb-6 flex flex-col items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
+              <XCircle className="h-6 w-6 text-red-400" />
+            </div>
+            <h1 className="font-mono text-xl font-semibold text-[#f8fafc]">Link invalid</h1>
+            <p className="text-sm text-slate-400">{check.error}</p>
+          </div>
+          <p className="mb-4 text-sm text-slate-500">Need a new link?</p>
+          <ResendVerificationForm />
+        </div>
+      )
+    }
+
     return (
       <div className="glass rounded-2xl p-8 text-center">
         <div className="mb-6 flex flex-col items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-            <XCircle className="h-6 w-6 text-red-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#22c55e]">
+            <Zap className="h-5 w-5 text-white" />
           </div>
-          <h1 className="font-mono text-xl font-semibold text-[#f8fafc]">Link invalid</h1>
-          <p className="text-sm text-slate-400">{result.error}</p>
+          <h1 className="font-mono text-xl font-semibold text-[#f8fafc]">Confirm your email</h1>
+          <p className="text-sm text-slate-400">Click below to verify {check.email}.</p>
         </div>
-        <p className="mb-4 text-sm text-slate-500">Need a new link?</p>
-        <ResendVerificationForm />
+        <ConfirmEmailForm token={token} loginHref={loginHref} />
       </div>
     )
   }
@@ -69,7 +87,7 @@ export default async function VerifyEmailPage({ searchParams }) {
       <p className="mt-6 text-center text-sm text-slate-500">
         Already verified?{' '}
         <Link
-          href="/login"
+          href={loginHref}
           className="font-medium text-[#22c55e] transition-colors hover:text-[#16a34a]"
         >
           Sign in

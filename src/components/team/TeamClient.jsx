@@ -22,6 +22,8 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+const ROLE_LABEL = { owner: 'Admin', member: 'Team Member' }
+
 export default function TeamClient({ workspace, initialMembers, initialInvites, currentUserId }) {
   const [members, setMembers] = useState(initialMembers)
   const [invites, setInvites] = useState(initialInvites)
@@ -138,7 +140,7 @@ export default function TeamClient({ workspace, initialMembers, initialInvites, 
                     : 'bg-slate-400/10 text-slate-400'
                 )}>
                   {m.role === 'owner' ? <Crown className="h-2.5 w-2.5" /> : <User className="h-2.5 w-2.5" />}
-                  {m.role}
+                  {ROLE_LABEL[m.role] ?? m.role}
                 </span>
                 {isOwner && m.id !== currentUserId && (
                   <button

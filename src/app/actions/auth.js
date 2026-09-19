@@ -9,10 +9,13 @@ import {
   findUserByEmail,
   setVerificationToken,
   verifyEmailToken,
+  findUserByVerificationToken,
   createPasswordResetToken,
   verifyPasswordResetToken,
   consumePasswordResetToken,
   createWorkspace,
+  countWorkspaces,
+  bumpSessionVersion,
 } from '@/lib/db'
 import { createSession, deleteSession } from '@/lib/session'
 import { sendVerificationEmail, sendPasswordResetEmail } from '@/lib/email'
@@ -46,11 +49,19 @@ function makeToken() {
   return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex')
 }
 
+// Only ever redirect to a same-site relative path — never follow a `from`
+// value like `//evil.com` or `https://evil.com` off-site (open redirect).
+function safeRedirectPath(path) {
+  if (typeof path !== 'string') return null
+  if (!path.startsWith('/') || path.startsWith('//')) return null
+  return path
+}
+
 // ── Actions ──────────────────────────────────────────────────────────
 
 export async function register(state, formData) {
   const ip = await getIP()
-  const { ok, retryAfter } = rateLimit(`register:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 })
+  const { ok, retryAfter } = await rateLimit(`register:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 })
   if (!ok) {
     return { message: `Too many attempts. Try again in ${retryAfter}s.` }
   }
@@ -66,6 +77,7 @@ export async function register(state, formData) {
   }
 
   const { name, email, password } = parsed.data
+  const from = safeRedirectPath(formData.get('from')?.toString())
 
   const existing = await findUserByEmail(email)
   if (existing) {
@@ -81,9 +93,13 @@ export async function register(state, formData) {
     return { message: 'Failed to create account. Please try again.' }
   }
 
-  // Create personal workspace for the new user
+  // Only the very first person to ever register becomes the workspace admin.
+  // Everyone after that starts with no workspace — an existing admin has to
+  // invite them, and they join as a team member via /accept-invite.
   try {
-    await createWorkspace({ ownerId: user.id, name: `${name}'s Workspace` })
+    if ((await countWorkspaces()) === 0) {
+      await createWorkspace({ ownerId: user.id, name: `${name}'s Workspace` })
+    }
   } catch (err) {
     console.error('Workspace creation failed:', err)
   }
@@ -95,12 +111,12 @@ export async function register(state, formData) {
     // Don't block registration if email fails — user can resend
   }
 
-  redirect('/verify-email')
+  redirect(`/verify-email${from ? `?from=${encodeURIComponent(from)}` : ''}`)
 }
 
 export async function login(state, formData) {
   const ip = await getIP()
-  const { ok, retryAfter } = rateLimit(`login:${ip}`, { limit: 10, windowMs: 15 * 60 * 1000 })
+  const { ok, retryAfter } = await rateLimit(`login:${ip}`, { limit: 10, windowMs: 15 * 60 * 1000 })
   if (!ok) {
     return { message: `Too many login attempts. Try again in ${retryAfter}s.` }
   }
@@ -115,15 +131,20 @@ export async function login(state, formData) {
   }
 
   const { email, password } = parsed.data
+  const from = safeRedirectPath(formData.get('from')?.toString())
+
+  // Same generic error whether the email doesn't exist or the password is
+  // wrong — telling them apart lets an attacker enumerate registered emails.
+  const genericError = { message: 'Invalid email or password.' }
 
   const user = await findUserByEmail(email)
   if (!user) {
-    return { errors: { email: ['No account found with this email'] } }
+    return genericError
   }
 
   const valid = await bcrypt.compare(password, user.password_hash)
   if (!valid) {
-    return { errors: { password: ['Incorrect password'] } }
+    return genericError
   }
 
   if (!user.email_verified) {
@@ -134,8 +155,8 @@ export async function login(state, formData) {
     }
   }
 
-  await createSession(user.id)
-  redirect('/dashboard')
+  await createSession(user.id, user.session_version)
+  redirect(from ?? '/dashboard')
 }
 
 export async function logout() {
@@ -145,7 +166,7 @@ export async function logout() {
 
 export async function resendVerification(state, formData) {
   const ip = await getIP()
-  const { ok, retryAfter } = rateLimit(`resend:${ip}`, { limit: 3, windowMs: 60 * 60 * 1000 })
+  const { ok, retryAfter } = await rateLimit(`resend:${ip}`, { limit: 3, windowMs: 60 * 60 * 1000 })
   if (!ok) {
     return { message: `Too many attempts. Try again in ${retryAfter}s.` }
   }
@@ -174,7 +195,7 @@ export async function resendVerification(state, formData) {
 
 export async function forgotPassword(state, formData) {
   const ip = await getIP()
-  const { ok, retryAfter } = rateLimit(`forgot:${ip}`, { limit: 3, windowMs: 60 * 60 * 1000 })
+  const { ok, retryAfter } = await rateLimit(`forgot:${ip}`, { limit: 3, windowMs: 60 * 60 * 1000 })
   if (!ok) {
     return { message: `Too many attempts. Try again in ${retryAfter}s.` }
   }
@@ -200,7 +221,7 @@ export async function forgotPassword(state, formData) {
 
 export async function resetPassword(state, formData) {
   const ip = await getIP()
-  const { ok, retryAfter } = rateLimit(`reset:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 })
+  const { ok, retryAfter } = await rateLimit(`reset:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 })
   if (!ok) {
     return { message: `Too many attempts. Try again in ${retryAfter}s.` }
   }
@@ -231,10 +252,25 @@ export async function resetPassword(state, formData) {
 
   const passwordHash = await bcrypt.hash(password, 12)
   await consumePasswordResetToken(record.token_id, record.user_id, passwordHash)
+  // Invalidate any other active sessions (e.g. a stolen cookie) now that the
+  // password has changed — this is exactly the scenario a reset is meant to fix.
+  await bumpSessionVersion(record.user_id)
 
   redirect('/login?reset=1')
 }
 
+// Read-only check — does NOT consume the token. Used to render the confirm
+// screen without verifying just because a link-scanner/prefetcher loaded the URL.
+export async function checkVerificationToken(token) {
+  if (!token) return { error: 'Missing token.' }
+  const user = await findUserByVerificationToken(token)
+  if (!user) return { error: 'This verification link is invalid or has expired.' }
+  if (user.email_verified) return { alreadyVerified: true, email: user.email }
+  return { valid: true, email: user.email }
+}
+
+// Mutating — only call this from an explicit user action (button click),
+// never as a side effect of a GET page load.
 export async function verifyEmail(token) {
   if (!token) return { error: 'Missing token.' }
   const user = await verifyEmailToken(token)

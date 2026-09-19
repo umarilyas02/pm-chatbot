@@ -1,6 +1,7 @@
 import 'server-only'
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
+import { getSessionVersion } from '@/lib/db'
 
 const SECRET = new TextEncoder().encode(process.env.SESSION_SECRET)
 const COOKIE = 'session'
@@ -23,9 +24,9 @@ export async function decrypt(token) {
   }
 }
 
-export async function createSession(userId) {
+export async function createSession(userId, sessionVersion = 1) {
   const expiresAt = new Date(Date.now() + EXPIRES_IN)
-  const token = await encrypt({ userId, expiresAt })
+  const token = await encrypt({ userId, sessionVersion, expiresAt })
   const store = await cookies()
   store.set(COOKIE, token, {
     httpOnly: true,
@@ -40,7 +41,16 @@ export async function getSession() {
   const store = await cookies()
   const token = store.get(COOKIE)?.value
   if (!token) return null
-  return decrypt(token)
+
+  const payload = await decrypt(token)
+  if (!payload?.userId) return null
+
+  // Reject sessions issued before the user's last password reset/change —
+  // lets us revoke stolen cookies without a server-side session store.
+  const currentVersion = await getSessionVersion(payload.userId)
+  if (currentVersion === null || payload.sessionVersion !== currentVersion) return null
+
+  return payload
 }
 
 export async function deleteSession() {

@@ -41,13 +41,13 @@ export default async function AcceptInvitePage({ searchParams }) {
       ) : (
         <div className="space-y-3">
           <Link
-            href={`/register?from=/accept-invite?token=${token}`}
+            href={`/register?from=${encodeURIComponent(`/accept-invite?token=${token}`)}`}
             className="flex w-full items-center justify-center rounded-lg bg-[#22c55e] px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
             Create account & join
           </Link>
           <Link
-            href={`/login?from=/accept-invite?token=${token}`}
+            href={`/login?from=${encodeURIComponent(`/accept-invite?token=${token}`)}`}
             className="flex w-full items-center justify-center rounded-lg border border-white/[0.08] px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:border-white/20 hover:text-[#f8fafc]"
           >
             Sign in & join
